@@ -2,7 +2,7 @@
 
 A real-time order notification system that streams database changes from PostgreSQL to WebSocket clients via Redis pub/sub.
 
-## 🏗️ System Architecture
+<!-- ## 🏗️ System Architecture
 
 ```
 ┌─────────────┐    NOTIFY     ┌─────────────┐    PUBLISH    ┌─────────────┐    WebSocket    ┌─────────────┐
@@ -17,7 +17,12 @@ A real-time order notification system that streams database changes from Postgre
  │ Triggers│                  │ Listens to  │              │ Subscribes to   │            │ Real-time   │
  │ & NOTIFY│                  │ PG Channel  │              │ Redis Channel   │            │ Dashboard   │
  └─────────┘                  └─────────────┘              └─────────────────┘            └─────────────┘
-```
+``` -->
+
+## 🏗️ System Architecture
+
+![System Architecture](./system_architecture.png)
+
 
 ## 🚀 Features
 
