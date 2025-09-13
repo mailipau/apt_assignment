@@ -1,12 +1,23 @@
 {
   "name": "apt_assignment",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Order Updates System - Postgres notifications to WebSocket clients via Redis",
+  "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node main.js",
+    "dev": "node main.js",
+    "test-connections": "node test-connection.js",
+    "publisher": "node publisher/index.js",
+    "ws-server": "node ws-server/index.js",
+    "client-cli": "node client-demo/cli.js"
   },
-  "keywords": [],
+  "keywords": [
+    "postgres",
+    "redis", 
+    "websocket",
+    "real-time",
+    "notifications"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

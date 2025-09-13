@@ -2,117 +2,309 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Orders Updates</title>
+  <title>Orders Updates - Real-time Dashboard</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, monospace; padding: 16px; }
-    #status { margin-bottom: 8px; }
-    #log { white-space: pre-wrap; background:#f7f7f7; padding:12px; height:320px; overflow:auto; border:1px solid #ddd; border-radius:6px;}
-    .muted { color: #666; font-size:12px; }
+    body { 
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, monospace; 
+      padding: 20px; 
+      background: #f5f5f5;
+      margin: 0;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { 
+      color: #2c3e50; 
+      margin: 0 0 20px 0;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+    }
+    #status { 
+      margin-bottom: 16px; 
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: bold;
+    }
+    .status-connecting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    .status-connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    
+    #log { 
+      white-space: pre-wrap; 
+      background: #2c3e50; 
+      color: #ecf0f1;
+      padding: 16px; 
+      height: 400px; 
+      overflow-y: auto; 
+      border: 1px solid #34495e; 
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .muted { color: #7f8c8d; font-size: 14px; }
+    .controls {
+      margin: 16px 0;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #2980b9; }
+    button:disabled { background: #bdc3c7; cursor: not-allowed; }
+    .info-box {
+      background: #e8f4f8;
+      border: 1px solid #bee5eb;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .event-insert { color: #27ae60; }
+    .event-update { color: #f39c12; }
+    .event-delete { color: #e74c3c; }
+    .timestamp { color: #95a5a6; font-size: 11px; }
   </style>
 </head>
 <body>
-  <h3>Orders Updates</h3>
-  <div id="status" class="muted">status: <span id="st">starting</span></div>
-  <div id="log"></div>
+  <div class="container">
+    <h1>📊 Orders Updates - Real-time Dashboard</h1>
+    
+    <div class="info-box">
+      <strong>🎯 System Status:</strong> This dashboard shows real-time order updates from your database.<br>
+      <strong>📡 Connection:</strong> <span id="ws-url">ws://localhost:8080</span>
+    </div>
+
+    <div id="status" class="status-connecting">
+      🔄 Status: <span id="st">Initializing...</span>
+    </div>
+
+    <div class="controls">
+      <button id="reconnect-btn" onclick="reconnectWebSocket()" disabled>🔄 Reconnect</button>
+      <button onclick="clearLog()">🗑️ Clear Log</button>
+      <button onclick="testConnection()">🧪 Test Connection</button>
+    </div>
+
+    <div><strong>📋 Activity Log:</strong></div>
+    <div id="log"></div>
+  </div>
 
   <script>
     // ====== CONFIG ======
-    // Local dev:
-    const LOCAL_WS = 'ws://localhost:8080';
-    // Deployed: replace with your deployed wss endpoint (example)
-    const PROD_WS = 'wss://your-deployed-app.onrender.com';
-    // Choose URL automatically; change logic for your environment
-    const WS_URL = location.hostname === 'localhost' ? LOCAL_WS : PROD_WS;
+    const WS_URLS = [
+      'ws://localhost:8080',
+      'ws://127.0.0.1:8080',
+      'ws://0.0.0.0:8080'
+    ];
+    
+    let currentWsUrl = WS_URLS[0];
+    let ws = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 10;
+    const MAX_BACKOFF = 30000; // 30s
 
-    // ====== UI helpers ======
+    // ====== UI Elements ======
     const statusEl = document.getElementById('st');
+    const statusContainer = document.getElementById('status');
     const logEl = document.getElementById('log');
-    function setStatus(s) { statusEl.textContent = s; }
-    function log(msg) {
+    const reconnectBtn = document.getElementById('reconnect-btn');
+    const wsUrlEl = document.getElementById('ws-url');
+
+    // ====== UI Functions ======
+    function setStatus(status, type = 'connecting') {
+      statusEl.textContent = status;
+      statusContainer.className = `status-${type}`;
+      
+      if (type === 'connected') {
+        reconnectBtn.disabled = true;
+        reconnectBtn.textContent = '✅ Connected';
+      } else if (type === 'disconnected') {
+        reconnectBtn.disabled = false;
+        reconnectBtn.textContent = '🔄 Reconnect';
+      }
+    }
+
+    function log(msg, className = '') {
       const time = new Date().toLocaleTimeString();
-      logEl.textContent += `[${time}] ${msg}\n`;
+      const logLine = `[${time}] ${msg}\n`;
+      
+      if (className) {
+        // For colored events, we'll use a simple approach
+        logEl.innerHTML += `<span class="${className}">${logLine}</span>`;
+      } else {
+        logEl.textContent += logLine;
+      }
+      
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    // ====== Robust WebSocket with reconnect (exponential backoff) ======
-    function createWS(url) {
-      let ws = null;
-      let attempts = 0;
-      let shouldReconnect = true;
-      const MAX_BACKOFF = 30000; // 30s
-
-      function connect() {
-        const delay = attempts === 0 ? 0 : Math.min(1000 * Math.pow(2, attempts - 1), MAX_BACKOFF);
-        setTimeout(() => {
-          setStatus('connecting');
-          ws = new WebSocket(url);
-
-          ws.onopen = () => {
-            attempts = 0; // reset backoff on successful connect
-            setStatus('connected');
-            log('→ connected to ' + url);
-            // Optionally send auth token here:
-            // ws.send(JSON.stringify({type:'auth', token: '...'}));
-          };
-
-          ws.onmessage = (evt) => {
-            handleMessage(evt.data);
-          };
-
-          ws.onclose = (evt) => {
-            setStatus('disconnected (code:'+evt.code+')');
-            log('⊘ connection closed: ' + evt.code + ' ' + (evt.reason || ''));
-            if (shouldReconnect) {
-              attempts++;
-              const nextDelay = Math.min(1000 * Math.pow(2, attempts - 1), MAX_BACKOFF);
-              log(`↻ reconnecting (#${attempts}) in ${nextDelay} ms`);
-              connect();
-            }
-          };
-
-          ws.onerror = (err) => {
-            console.error('WebSocket error', err);
-            // error often followed by close; close to trigger reconnect logic
-            try { ws.close(); } catch(e) {}
-          };
-        }, delay);
-      }
-
-      connect();
-
-      return {
-        send: (d) => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(d); },
-        close: () => { shouldReconnect = false; if (ws) ws.close(); }
-      };
+    function clearLog() {
+      logEl.textContent = '';
+      log('📋 Log cleared');
     }
 
-    // ====== Application message handler ======
+    function testConnection() {
+      log('🧪 Testing connection to ' + currentWsUrl);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        log('✅ WebSocket is connected and ready');
+        ws.send(JSON.stringify({type: 'ping', timestamp: new Date().toISOString()}));
+      } else {
+        log('❌ WebSocket is not connected');
+      }
+    }
+
+    // ====== WebSocket Functions ======
+    function connectWebSocket(url) {
+      try {
+        log(`🔌 Attempting to connect to ${url}...`);
+        setStatus(`Connecting to ${url}...`, 'connecting');
+        
+        ws = new WebSocket(url);
+
+        ws.onopen = () => {
+          reconnectAttempts = 0;
+          setStatus('Connected ✅', 'connected');
+          log(`🎉 Connected to ${url}`);
+          wsUrlEl.textContent = url;
+        };
+
+        ws.onmessage = (evt) => {
+          handleMessage(evt.data);
+        };
+
+        ws.onclose = (evt) => {
+          setStatus(`Disconnected (${evt.code})`, 'disconnected');
+          log(`🔌 Connection closed: ${evt.code} ${evt.reason || ''}`);
+          
+          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            scheduleReconnect();
+          } else {
+            log('❌ Max reconnection attempts reached. Click Reconnect to try again.');
+          }
+        };
+
+        ws.onerror = (err) => {
+          log(`❌ WebSocket error: Connection failed`);
+          console.error('WebSocket error:', err);
+        };
+
+      } catch (err) {
+        log(`❌ Failed to create WebSocket: ${err.message}`);
+        setStatus('Connection Failed', 'disconnected');
+      }
+    }
+
+    function scheduleReconnect() {
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), MAX_BACKOFF);
+      log(`🔄 Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${delay}ms...`);
+      
+      setTimeout(() => {
+        if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
+          connectWebSocket(currentWsUrl);
+        }
+      }, delay);
+    }
+
+    function reconnectWebSocket() {
+      reconnectAttempts = 0;
+      if (ws) {
+        ws.close();
+      }
+      connectWebSocket(currentWsUrl);
+    }
+
+    // ====== Message Handler ======
     function handleMessage(raw) {
-      // Publisher publishes JSON like: { operation: 'INSERT', order: { id:..., customer_name:..., ... } }
       try {
         const obj = JSON.parse(raw);
-        // Render in UI nicely
-        if (obj.operation && obj.order) {
-          log(`EVENT ${obj.operation}: id=${obj.order.id} customer="${obj.order.customer_name}" product="${obj.order.product_name}" status=${obj.order.status}`);
-          // You can also show full JSON:
-          log('  payload: ' + JSON.stringify(obj.order));
-        } else {
-          // generic JSON message
-          log('RECV JSON: ' + JSON.stringify(obj));
+        
+        // Handle different message types
+        if (obj.type === 'welcome') {
+          log(`👋 ${obj.msg}`);
+          return;
         }
+
+        // Handle order updates
+        if (obj.operation && obj.order) {
+          const op = obj.operation.toUpperCase();
+          const order = obj.order;
+          const className = `event-${op.toLowerCase()}`;
+          
+          log(`🎯 ${op}: Order #${order.id}`, className);
+          log(`   Customer: ${order.customer_name || 'N/A'}`, className);
+          log(`   Product: ${order.product_name || 'N/A'}`, className);
+          log(`   Status: ${order.status || 'N/A'}`, className);
+          log(`   Amount: $${order.amount || '0.00'}`, className);
+          
+          if (obj._published_at) {
+            log(`   Published: ${new Date(obj._published_at).toLocaleString()}`, 'timestamp');
+          }
+          log(''); // Empty line for readability
+          
+        } else if (obj._pub_id) {
+          // Generic message with pub_id
+          log(`📨 Message #${obj._pub_id}: ${JSON.stringify(obj)}`);
+        } else {
+          // Any other JSON
+          log(`📨 Received: ${JSON.stringify(obj)}`);
+        }
+        
       } catch (e) {
-        // not json
-        log('RECV TEXT: ' + raw);
+        // Not JSON - display as text
+        log(`📨 Text message: ${raw}`);
       }
     }
 
-    // ====== Start client ======
-    const client = createWS(WS_URL);
-    // expose for debugging
-    window.__ordersWS = client;
+    // ====== Initialize ======
+    function init() {
+      log('🚀 Orders Dashboard starting...');
+      log('📡 Supported WebSocket URLs:');
+      WS_URLS.forEach((url, index) => {
+        log(`   ${index + 1}. ${url}`);
+      });
+      log('');
+      
+      // Try to connect
+      connectWebSocket(currentWsUrl);
+    }
 
-    // optional: close on page unload
-    window.addEventListener('beforeunload', () => client.close());
+    // ====== Event Listeners ======
+    window.addEventListener('beforeunload', () => {
+      if (ws) ws.close();
+    });
+
+    window.addEventListener('load', () => {
+      init();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch(e.key) {
+          case 'r':
+            e.preventDefault();
+            reconnectWebSocket();
+            break;
+          case 'l':
+            e.preventDefault();
+            clearLog();
+            break;
+        }
+      }
+    });
   </script>
 </body>
 </html>
