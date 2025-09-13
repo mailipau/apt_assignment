@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Orders Updates</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, monospace; padding: 16px; }
+    #status { margin-bottom: 8px; }
+    #log { white-space: pre-wrap; background:#f7f7f7; padding:12px; height:320px; overflow:auto; border:1px solid #ddd; border-radius:6px;}
+    .muted { color: #666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h3>Orders Updates</h3>
+  <div id="status" class="muted">status: <span id="st">starting</span></div>
+  <div id="log"></div>
+
+  <script>
+    // ====== CONFIG ======
+    // Local dev:
+    const LOCAL_WS = 'ws://localhost:8080';
+    // Deployed: replace with your deployed wss endpoint (example)
+    const PROD_WS = 'wss://your-deployed-app.onrender.com';
+    // Choose URL automatically; change logic for your environment
+    const WS_URL = location.hostname === 'localhost' ? LOCAL_WS : PROD_WS;
+
+    // ====== UI helpers ======
+    const statusEl = document.getElementById('st');
+    const logEl = document.getElementById('log');
+    function setStatus(s) { statusEl.textContent = s; }
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent += `[${time}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // ====== Robust WebSocket with reconnect (exponential backoff) ======
+    function createWS(url) {
+      let ws = null;
+      let attempts = 0;
+      let shouldReconnect = true;
+      const MAX_BACKOFF = 30000; // 30s
+
+      function connect() {
+        const delay = attempts === 0 ? 0 : Math.min(1000 * Math.pow(2, attempts - 1), MAX_BACKOFF);
+        setTimeout(() => {
+          setStatus('connecting');
+          ws = new WebSocket(url);
+
+          ws.onopen = () => {
+            attempts = 0; // reset backoff on successful connect
+            setStatus('connected');
+            log('→ connected to ' + url);
+            // Optionally send auth token here:
+            // ws.send(JSON.stringify({type:'auth', token: '...'}));
+          };
+
+          ws.onmessage = (evt) => {
+            handleMessage(evt.data);
+          };
+
+          ws.onclose = (evt) => {
+            setStatus('disconnected (code:'+evt.code+')');
+            log('⊘ connection closed: ' + evt.code + ' ' + (evt.reason || ''));
+            if (shouldReconnect) {
+              attempts++;
+              const nextDelay = Math.min(1000 * Math.pow(2, attempts - 1), MAX_BACKOFF);
+              log(`↻ reconnecting (#${attempts}) in ${nextDelay} ms`);
+              connect();
+            }
+          };
+
+          ws.onerror = (err) => {
+            console.error('WebSocket error', err);
+            // error often followed by close; close to trigger reconnect logic
+            try { ws.close(); } catch(e) {}
+          };
+        }, delay);
+      }
+
+      connect();
+
+      return {
+        send: (d) => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(d); },
+        close: () => { shouldReconnect = false; if (ws) ws.close(); }
+      };
+    }
+
+    // ====== Application message handler ======
+    function handleMessage(raw) {
+      // Publisher publishes JSON like: { operation: 'INSERT', order: { id:..., customer_name:..., ... } }
+      try {
+        const obj = JSON.parse(raw);
+        // Render in UI nicely
+        if (obj.operation && obj.order) {
+          log(`EVENT ${obj.operation}: id=${obj.order.id} customer="${obj.order.customer_name}" product="${obj.order.product_name}" status=${obj.order.status}`);
+          // You can also show full JSON:
+          log('  payload: ' + JSON.stringify(obj.order));
+        } else {
+          // generic JSON message
+          log('RECV JSON: ' + JSON.stringify(obj));
+        }
+      } catch (e) {
+        // not json
+        log('RECV TEXT: ' + raw);
+      }
+    }
+
+    // ====== Start client ======
+    const client = createWS(WS_URL);
+    // expose for debugging
+    window.__ordersWS = client;
+
+    // optional: close on page unload
+    window.addEventListener('beforeunload', () => client.close());
+  </script>
+</body>
+</html>
