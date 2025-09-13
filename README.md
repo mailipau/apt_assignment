@@ -6,6 +6,8 @@ A real-time order notification system that streams database changes from Postgre
 
 ![System Architecture](./system_architecture.png)
 
+## 🎥 Demo Video
+[![Watch the demo](https://img.youtube.com/vi/DrAzmd3ruV8/0.jpg)](https://youtu.be/DrAzmd3ruV8)
 
 ## 🚀 Features
 
